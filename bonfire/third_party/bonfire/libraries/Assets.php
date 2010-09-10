@@ -26,18 +26,32 @@ class Assets {
 	// Variable: styles
 	// The CSS files to be included.
 	private $styles				= array();	
+	
+	// Variable: packages
+	// The packages of assets available.
+	private $packages			= array();
 
 	//---------------------------------------------------------------
 
 	public function __construct() 
 	{
 		$this->ci =& get_instance();
+		
+		//$this->ci->benchmark->mark('constructor_start');
+	
+		// Grab our packages
+		if ($p =& $this->ci->config->item('assets.packages'))
+		{
+			$this->packages = $p;
+		}
 	
 		// Load the file helper, since we'll be using it a lot
 		if (!function_exists('write_file'))
 		{
 			$this->ci->load->helper('file');
 		}
+		
+		//$this->ci->benchmark->mark('constructor_end');
 	}
 	
 	//---------------------------------------------------------------
@@ -58,6 +72,8 @@ class Assets {
 	*/
 	public function add_css($styles=null) 
 	{
+		//$this->ci->benchmark->mark('add_css_start');
+	
 		if (empty($styles))
 		{
 			return;
@@ -77,6 +93,8 @@ class Assets {
 				$this->styles[] = $style;
 			}
 		} 
+		
+		//$this->ci->benchmark->mark('add_css_end');
 	}
 	
 	//---------------------------------------------------------------
@@ -91,23 +109,133 @@ class Assets {
 	 	
 	 	Parameter: styles - either a string or array of package/file names
 	*/
-	public function css($styles=null) 
+	public function css($styles=null, $override=false) 
 	{
+		//$this->ci->benchmark->mark('css_start');
+	
 		// If neither the user nor our stores has any files, get out of here.
 		if (empty($styles) && !count($this->styles))
 		{
 			return '';
 		}
 		
-		// Is it part of a package? 
-		if (is_string($styles) && (array_key_exists($styles, $this->ci->config->item('assets.packages')) || $styles=='all'))
-		{	
-			return $this->render_package($styles, 'css');
+		// Simplify by only dealing with arrays
+		if (!is_array($styles))
+		{
+			$styles = array($styles);
 		}
-		else 
+		
+		// Should we include the stored styles? 
+		if ($override === false && count($this->styles))
 		{	
-			return $this->render_links($styles);
+			$styles = array_merge($this->styles, $styles);
 		}
+		
+		// Loop through all of the styles, saving the output links
+		$output = '';
+		foreach ($styles as $style)
+		{
+			// Is it part of a package? 
+			if (array_key_exists($style, $this->packages) || $style=='all')
+			{	
+				$output .= $this->render_package($style, 'css') . "\n";
+			}
+			else 
+			{	
+				$output .= $this->render_links($style);
+			}
+		}
+		
+		//$this->ci->benchmark->mark('css_end');
+		
+		return $output;
+	}
+	
+	//---------------------------------------------------------------
+	
+	//---------------------------------------------------------------
+	// !JAVASCRIPT FUNCTIONS
+	//---------------------------------------------------------------
+	
+	/*
+		Method: add_js 
+		
+		Accepts either an array or a string with a single js file name
+		and appends them to the base scripts in $this->scripts;
+		
+		The file names should NOT have an extension added on to them.
+		
+		Parameter: styles - either a string or array of file names.
+	*/
+	public function add_js($scripts=null) 
+	{
+		//$this->ci->benchmark->mark('add_js_start');
+	
+		if (empty($scripts))
+		{
+			return;
+		}
+	
+		// Handle String values
+		if (is_string($scripts))
+		{
+			$this->external_scripts[] = $scripts;
+		} 
+		
+		// Process arrays
+		else if (is_array($scripts) && count($scripts) != 0)
+		{
+			foreach ($scripts as $script)
+			{
+				$this->external_scripts[] = $script;
+			}
+		} 
+		
+		//$this->ci->benchmark->mark('add_js_end');
+	}
+	
+	//---------------------------------------------------------------
+	
+	/*
+		Method: add_inline_js 
+		
+		Accepts either an array or a string with a single js file name
+		and appends them to the base scripts in $this->scripts;
+		
+		The file names should NOT have an extension added on to them.
+		
+		Parameter: styles - either a string or array of file names.
+	*/
+	public function add_js($scripts=null) 
+	{
+		//$this->ci->benchmark->mark('add_inline_js_start');
+	
+		if (empty($scripts))
+		{
+			return;
+		}
+	
+		// Handle String values
+		$this->inline_scripts[] = $scripts . "\n\n";
+		
+		//$this->ci->benchmark->mark('add_inline_js_end');
+	}
+	
+	//---------------------------------------------------------------
+	
+	/*
+	 	Method: js
+	 	
+	 	Creates the proper links for inserting javascript links, 
+	 	depending on whether devmode is 'dev' or other (test/production).
+	 	
+	 	The file names should NOT have the extension.
+	 	
+	 	Parameter: styles - either a string or array of package/file names
+	*/
+	public function js($scripts=null, $override=false) 
+	{
+		return 'Javascript Files';		
 	}
 	
 	//---------------------------------------------------------------
@@ -127,6 +255,8 @@ class Assets {
 	*/
 	public function render_links($files=null, $type='css') 
 	{
+		//$this->ci->benchmark->mark('render_links_start');
+	
 		if (!is_string($files) && !is_array($files))
 		{
 			return '';
@@ -180,6 +310,8 @@ class Assets {
 	*/
 	public function build_link($style, $type='css') 
 	{
+		//$this->ci->benchmark->mark('build_link_start');
+	
 		// Write the file to the asset folder, if it doesn't already exist
 		$file = dirname(APPPATH) .'/assets/'. $type .'/'. $style .'.'. $type;
 					
@@ -190,12 +322,16 @@ class Assets {
 	
 		if ($type == 'css')
 		{
-			return '<link rel="stylesheet" type="text/css" href="'. base_url() . $this->asset_folder .'css/'. $style . '.css" />' . "\n";
+			$link = '<link rel="stylesheet" type="text/css" href="'. base_url() . $this->asset_folder .'css/'. $style . '.css" />' . "\n";
 		}
 		else 
 		{
-			return 'javascript file';
+			$link = 'javascript file';
 		}
+		
+		//$this->ci->benchmark->mark('build_link_end');
+		
+		return $link;
 	}
 	
 	//---------------------------------------------------------------
@@ -213,6 +349,8 @@ class Assets {
 	*/
 	public function render_package($name=null, $type=null) 
 	{
+		//$this->ci->benchmark->mark('render_package_start');
+	
 		if (!is_string($name) || !is_string($type))
 		{
 			return;
@@ -220,7 +358,7 @@ class Assets {
 		
 		if ($name != 'all')
 		{
-			$files = $this->ci->config->item('assets.packages');
+			$files = $this->packages;
 			$files = $files[$name][$type];
 		} else 
 		{
@@ -250,6 +388,8 @@ class Assets {
 			
 			write_file($cache, $content);
 		}
+		
+		//$this->ci->benchmark->mark('render_package_end');
 		
 		return $this->build_link($name, $type);
 	}
